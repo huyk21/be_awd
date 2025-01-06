@@ -21,7 +21,7 @@ export class Task {
   @Prop({ required: true })
   priority: 'low' | 'medium' | 'high';
 
-  @Prop()
+  @Prop({default: ''})
   category: string;
 
   @Prop()
@@ -37,13 +37,13 @@ export class Task {
   @Prop()
   estimatedTime?: number;
 
-  @Prop()
+  @Prop({default: 1})
   pomodoro_required_number: number;
 
-  @Prop()
+  @Prop({default: 0})
   pomodoro_number: number;
 
-  @Prop()
+  @Prop({default : false})
   is_on_pomodoro_list: boolean;
 
   @Prop({
@@ -51,6 +51,10 @@ export class Task {
       backgroundColor: { type: String },
       textColor: { type: String },
     },
+    default: { 
+      backgroundColor: '#ffffff', 
+      textColor: '#000000' 
+    }
   })
   style?: { backgroundColor: string; textColor: string };
 }

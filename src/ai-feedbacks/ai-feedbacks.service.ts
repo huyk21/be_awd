@@ -72,7 +72,7 @@ export class AiFeedbacksService {
       generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: schema,
-        maxOutputTokens: 300,
+        maxOutputTokens: 250,
       },
     });
   }
@@ -118,9 +118,9 @@ export class AiFeedbacksService {
     }
   }
 
-  async getSummaryInsights(): Promise<string | { message: string }> {
+  async getSummaryInsights(userId: any): Promise<any> {
     try {
-      const tasks = await this.tasksService.findAll();
+      const tasks = await this.tasksService.findByUserId(userId);
       if (!tasks || tasks.length === 0) {
         return { message: 'No tasks found to analyze' };
       }
@@ -133,7 +133,6 @@ ${JSON.stringify(tasks, null, 2)}
 
       const result = await this.model.generateContent(prompt);
       const textResponse = result.response.text();
-      console.log(textResponse);
       return textResponse;
     } catch (error) {
       console.error('Error in getSummaryInsights:', error); // Log the error
