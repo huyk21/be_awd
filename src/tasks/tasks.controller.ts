@@ -8,6 +8,7 @@ import {
   Delete,
   Param,
   Body,
+  Req,
 } from '@nestjs/common';
 import { TasksService } from './tasks.service';
 import { CreateTaskDto, UpdateTaskDto } from './tasks.dto';
@@ -72,5 +73,18 @@ export class TasksController {
   @ApiResponse({ status: 200, description: 'Task deleted successfully.' })
   async deleteTask(@Param('id') id: string): Promise<void> {
     return await this.tasksService.deleteTask(id);
+  }
+
+
+  @Get('auth')
+  @ApiOperation({ summary: 'Retrieve tasks for the authenticated user' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of tasks retrieved successfully.',
+    type: [Task],
+  })
+  async getTasksForAuthenticatedUser(@Req() req: Request): Promise<Task[]> {
+    const userId = req['user']?.userId; // Retrieve userId from the request
+    return await this.tasksService.findByUserId(userId);
   }
 }
