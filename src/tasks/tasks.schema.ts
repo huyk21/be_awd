@@ -30,6 +30,9 @@ export class Task {
   @Prop()
   endTime?: Date;
 
+  @Prop()
+  dueTime?: Date;
+
   // time needed to do this task, in minutes
   @Prop()
   estimatedTime?: number;
