@@ -118,6 +118,11 @@ export class FocusSessionsController {
     return this.currentPomodoroService.createCurrentPomodoro(data);
   }
 
+  @Put('/current-pomodoro')
+  async createCurrentPomodoro(@Body() data) {
+    return this.currentPomodoroService.createCurrentPomodoro(data);
+  }
+
   @Get('/pomodoro-log')
   async getPomodoroLog() {
     return this.pomodoroLogService.findAll();

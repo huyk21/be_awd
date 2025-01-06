@@ -6,7 +6,7 @@ export class AiAgentController {
   constructor(private readonly aiAgentService: AiAgentService) {}
 
   @Post()
-  async testAiAgent(@Body('prompt') prompt: string): Promise<string> {
+  async testAiAgent(@Body('prompt') prompt: string): Promise<any> {
     return this.aiAgentService.processPrompt(prompt);
   }
 
