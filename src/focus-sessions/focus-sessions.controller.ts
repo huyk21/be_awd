@@ -11,6 +11,7 @@ import {
   HttpException,
   HttpStatus,
   Logger,
+  Delete,
 } from '@nestjs/common';
 import { SessionSettingsService } from './session-settings.service';
 import { CurrentPomodoroService } from './current-pomodoro.service';
@@ -259,4 +260,98 @@ export class FocusSessionsController {
       throw new HttpException('Failed to fetch pomodoro logs.', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
+   /**
+   * Update a CurrentPomodoro record by user_id.
+   */
+   @Put('current-pomodoro/:user_id')
+   async updateCurrentPomodoro(
+     @Param('user_id') user_id: string,
+     @Body() body: any,
+   ) {
+     this.logger.debug(
+       `Received PUT /focus-sessions/current-pomodoro/${user_id} with body: ${JSON.stringify(body)}`,
+     );
+ 
+     // Validate input
+     if (!user_id) {
+       this.logger.warn('User ID is missing in the URL parameters.');
+       throw new HttpException('User ID is required.', HttpStatus.BAD_REQUEST);
+     }
+ 
+     try {
+       const updatedPomodoro = await this.currentPomodoroService.updateCurrentPomodoro(
+         user_id,
+         body, // Expecting partial CurrentPomodoro data
+       );
+ 
+       this.logger.debug(
+         `CurrentPomodoro updated for user_id: ${user_id}`,
+       );
+ 
+       return {
+         message: 'CurrentPomodoro updated successfully.',
+         data: updatedPomodoro,
+       };
+     } catch (error) {
+       this.logger.error(
+         `Error updating CurrentPomodoro for user_id: ${user_id}`,
+         error.stack,
+       );
+       if (error instanceof HttpException) {
+         throw error;
+       }
+       throw new HttpException(
+         'Failed to update CurrentPomodoro.',
+         HttpStatus.INTERNAL_SERVER_ERROR,
+       );
+     }
+   }
+ 
+   /**
+    * Delete a CurrentPomodoro record by user_id.
+    */
+   @Delete('current-pomodoro/:user_id')
+   async deleteCurrentPomodoro(
+     @Param('user_id') user_id: string,
+   ) {
+     this.logger.debug(
+       `Received DELETE /focus-sessions/current-pomodoro/${user_id}`,
+     );
+ 
+     // Validate input
+     if (!user_id) {
+       this.logger.warn('User ID is missing in the URL parameters.');
+       throw new HttpException('User ID is required.', HttpStatus.BAD_REQUEST);
+     }
+ 
+     try {
+       const deletedPomodoro = await this.currentPomodoroService.deleteCurrentPomodoroByUserId(user_id);
+ 
+       if (!deletedPomodoro) {
+         this.logger.warn(`CurrentPomodoro not found for user_id: ${user_id}`);
+         throw new HttpException('CurrentPomodoro not found.', HttpStatus.NOT_FOUND);
+       }
+ 
+       this.logger.debug(
+         `CurrentPomodoro deleted for user_id: ${user_id}`,
+       );
+ 
+       return {
+         message: 'CurrentPomodoro deleted successfully.',
+         data: deletedPomodoro,
+       };
+     } catch (error) {
+       this.logger.error(
+         `Error deleting CurrentPomodoro for user_id: ${user_id}`,
+         error.stack,
+       );
+       if (error instanceof HttpException) {
+         throw error;
+       }
+       throw new HttpException(
+         'Failed to delete CurrentPomodoro.',
+         HttpStatus.INTERNAL_SERVER_ERROR,
+       );
+     }
+   }
 }
