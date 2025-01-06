@@ -1,4 +1,17 @@
-import { Controller, Get, Post, Put, Body, Param } from '@nestjs/common';
+// src/controllers/focus-sessions.controller.ts
+
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Body,
+  Param,
+  Request,
+  HttpException,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
 import { SessionSettingsService } from './session-settings.service';
 import { CurrentPomodoroService } from './current-pomodoro.service';
 import { TasksService } from '../tasks/tasks.service';
@@ -6,6 +19,8 @@ import { PomodoroLogService } from './pomodoro-log.service';
 
 @Controller('focus-sessions')
 export class FocusSessionsController {
+  private readonly logger = new Logger(FocusSessionsController.name);
+
   constructor(
     private readonly sessionSettingsService: SessionSettingsService,
     private readonly currentPomodoroService: CurrentPomodoroService,
@@ -13,8 +28,13 @@ export class FocusSessionsController {
     private readonly taskService: TasksService,
   ) {}
 
+  /**
+   * Create session settings for a user.
+   */
   @Post('session-settings')
-  async createSessionSettings(@Body() body) {
+  async createSessionSettings(@Body() body: any) {
+    this.logger.debug(`Received POST /focus-sessions/session-settings with body: ${JSON.stringify(body)}`);
+
     const {
       user_id,
       default_work_time,
@@ -22,40 +42,101 @@ export class FocusSessionsController {
       long_break_time,
       cycles_per_set,
     } = body;
-    return this.sessionSettingsService.createSessionSettings(user_id, {
-      default_work_time,
-      default_break_time,
-      long_break_time,
-      cycles_per_set,
-    });
+
+    if (!user_id) {
+      this.logger.warn('User ID is missing in the request body.');
+      throw new HttpException('User ID is required.', HttpStatus.BAD_REQUEST);
+    }
+
+    try {
+      const settings = await this.sessionSettingsService.createSessionSettings(user_id, {
+        default_work_time,
+        default_break_time,
+        long_break_time,
+        cycles_per_set,
+      });
+      this.logger.debug(`Session settings created for user_id: ${user_id}`);
+      return settings;
+    } catch (error) {
+      this.logger.error(`Error creating session settings for user_id: ${user_id}`, error.stack);
+      throw new HttpException('Failed to create session settings.', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
+  /**
+   * Update session settings for a user.
+   */
   @Put('update/:user_id')
-  async updateSessionSettings(@Param('user_id') user_id: string, @Body() body) {
+  async updateSessionSettings(@Param('user_id') user_id: string, @Body() body: any) {
+    this.logger.debug(`Received PUT /focus-sessions/update/${user_id} with body: ${JSON.stringify(body)}`);
+
     const {
       default_work_time,
       default_break_time,
       long_break_time,
       cycles_per_set,
     } = body;
-    return this.sessionSettingsService.updateSessionSettings(user_id, {
-      default_work_time,
-      default_break_time,
-      long_break_time,
-      cycles_per_set,
-    });
+
+    if (!user_id) {
+      this.logger.warn('User ID is missing in the URL parameters.');
+      throw new HttpException('User ID is required.', HttpStatus.BAD_REQUEST);
+    }
+
+    try {
+      const updatedSettings = await this.sessionSettingsService.updateSessionSettings(user_id, {
+        default_work_time,
+        default_break_time,
+        long_break_time,
+        cycles_per_set,
+      });
+      this.logger.debug(`Session settings updated for user_id: ${user_id}`);
+      return updatedSettings;
+    } catch (error) {
+      this.logger.error(`Error updating session settings for user_id: ${user_id}`, error.stack);
+      throw new HttpException('Failed to update session settings.', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
-  
-
+  /**
+   * Get session settings for the authenticated user.
+   */
   @Get('session-settings')
-  async findAllSessionSettings() {
-    return this.sessionSettingsService.findAllSessionSettings();
+  async getSessionSettings(@Request() req) {
+    this.logger.debug('Received GET /focus-sessions/session-settings');
+
+    const userId = req['user']?.userId;
+    this.logger.debug(`Authenticated user ID: ${userId}`);
+
+    if (!userId) {
+      this.logger.warn('User ID not found in the request.');
+      throw new HttpException('User not authenticated.', HttpStatus.UNAUTHORIZED);
+    }
+
+    try {
+      const settings = await this.sessionSettingsService.findByUserId(userId);
+      if (!settings) {
+        this.logger.warn(`Session settings not found for user_id: ${userId}`);
+        throw new HttpException('Session settings not found.', HttpStatus.NOT_FOUND);
+      }
+
+      this.logger.debug(`Retrieved session settings for user_id: ${userId}`);
+      return settings;
+    } catch (error) {
+      this.logger.error(`Error fetching session settings for user_id: ${userId}`, error.stack);
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException('Failed to fetch session settings.', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
-  // Pomodoro log
+  /**
+   * Create a pomodoro log entry.
+   */
   @Post('pomodoro-log')
-  async createPomodoroLog(@Body() body) {
+  async createPomodoroLog(@Body() body: any) {
+    this.logger.debug(`Received POST /focus-sessions/pomodoro-log with body: ${JSON.stringify(body)}`);
+
     let {
       user_id,
       task_id,
@@ -67,61 +148,115 @@ export class FocusSessionsController {
       session_status,
     } = body;
 
-    // create pomodoro log
-    await this.pomodoroLogService.create({
-      user_id,
-      task_id,
-      start_time,
-      end_time,
-      session_status,
-    });
-    if (session_status == 'pomodoro') {
-      // Update pomodoro_number and check status in Task table
-      await this.taskService.incrementPomodoroNumber(task_id);
-      current_pomodoro_number += 1;
-      if (current_pomodoro_number == required_cyle_number) {
-        session_status = 'long-break';
-      } else {
-        session_status = 'short-break';
-      }
-    } else if (session_status == 'short-break') {
-      session_status = 'short-break';
-      current_cycle_number += 1;
-    } else if (session_status == 'long-break') {
-      session_status = 'pomodoro';
-      current_cycle_number = 1;
+    if (!user_id || !task_id || !session_status) {
+      this.logger.warn('Missing required fields in the pomodoro log request.');
+      throw new HttpException('Missing required fields.', HttpStatus.BAD_REQUEST);
     }
-    current_pomodoro_number += 1;
-    // update CurrentPomodoro
-    const currentPomodoro =
-      await this.currentPomodoroService.findCurrentPomodoroByUserId(user_id);
-    currentPomodoro.current_pomodoro_number = current_pomodoro_number;
-    currentPomodoro.current_cycle_number = current_cycle_number;
-    currentPomodoro.current_session_status = session_status;
-    await currentPomodoro.save();
-    return {
-      user_id,
-      task_id,
-      current_pomodoro_number,
-      current_cycle_number,
-      required_cyle_number,
-      start_time,
-      end_time,
-      session_status,
-      message: 'successfully',
-    };
+
+    try {
+      // Create pomodoro log
+      await this.pomodoroLogService.create({
+        user_id,
+        task_id,
+        start_time,
+        end_time,
+        session_status,
+      });
+      this.logger.debug(`Pomodoro log created for user_id: ${user_id}, task_id: ${task_id}`);
+
+      // Update session status based on the current session
+      if (session_status === 'pomodoro') {
+        await this.taskService.incrementPomodoroNumber(task_id);
+        this.logger.debug(`Incremented pomodoro number for task_id: ${task_id}`);
+        current_pomodoro_number += 1;
+
+        if (current_pomodoro_number === required_cyle_number) {
+          session_status = 'long-break';
+          this.logger.debug('Session status updated to long-break');
+        } else {
+          session_status = 'short-break';
+          this.logger.debug('Session status updated to short-break');
+        }
+      } else if (session_status === 'short-break') {
+        session_status = 'short-break';
+        current_cycle_number += 1;
+        this.logger.debug('Session status remains short-break');
+      } else if (session_status === 'long-break') {
+        session_status = 'pomodoro';
+        current_cycle_number = 1;
+        this.logger.debug('Session status updated to pomodoro');
+      }
+
+      // Update CurrentPomodoro
+      const currentPomodoro = await this.currentPomodoroService.findCurrentPomodoroByUserId(user_id);
+      if (!currentPomodoro) {
+        this.logger.warn(`CurrentPomodoro not found for user_id: ${user_id}`);
+        throw new HttpException('CurrentPomodoro not found.', HttpStatus.NOT_FOUND);
+      }
+
+      currentPomodoro.current_pomodoro_number = current_pomodoro_number;
+      currentPomodoro.current_cycle_number = current_cycle_number;
+      currentPomodoro.current_session_status = session_status;
+
+      await currentPomodoro.save();
+      this.logger.debug(`CurrentPomodoro updated for user_id: ${user_id}`);
+
+      return {
+        user_id,
+        task_id,
+        current_pomodoro_number,
+        current_cycle_number,
+        required_cyle_number,
+        start_time,
+        end_time,
+        session_status,
+        message: 'successfully',
+      };
+    } catch (error) {
+      this.logger.error(`Error creating pomodoro log for user_id: ${user_id}`, error.stack);
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      throw new HttpException('Failed to create pomodoro log.', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
-  // CurrentPomodoro
+  /**
+   * Create or initialize CurrentPomodoro for a user.
+   */
   @Post('/current-pomodoro')
-  async createCurrentPomodoro(@Body() data) {
-    return this.currentPomodoroService.createCurrentPomodoro(data);
+  async createCurrentPomodoro(@Body() data: any) {
+    this.logger.debug(`Received POST /focus-sessions/current-pomodoro with data: ${JSON.stringify(data)}`);
+
+    if (!data.user_id) {
+      this.logger.warn('User ID is missing in the current pomodoro request.');
+      throw new HttpException('User ID is required.', HttpStatus.BAD_REQUEST);
+    }
+
+    try {
+      const currentPomodoro = await this.currentPomodoroService.createCurrentPomodoro(data);
+      this.logger.debug(`CurrentPomodoro created for user_id: ${data.user_id}`);
+      return currentPomodoro;
+    } catch (error) {
+      this.logger.error(`Error creating CurrentPomodoro for user_id: ${data.user_id}`, error.stack);
+      throw new HttpException('Failed to create CurrentPomodoro.', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
-
-
+  /**
+   * Retrieve all pomodoro logs.
+   */
   @Get('/pomodoro-log')
   async getPomodoroLog() {
-    return this.pomodoroLogService.findAll();
+    this.logger.debug('Received GET /focus-sessions/pomodoro-log');
+
+    try {
+      const logs = await this.pomodoroLogService.findAll();
+      this.logger.debug(`Retrieved ${logs.length} pomodoro logs`);
+      return logs;
+    } catch (error) {
+      this.logger.error('Error fetching pomodoro logs', error.stack);
+      throw new HttpException('Failed to fetch pomodoro logs.', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 }

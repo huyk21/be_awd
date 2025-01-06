@@ -58,6 +58,6 @@ export class AppModule {
         { path: 'auth/register', method: RequestMethod.POST },
         // Add any other public routes you want to exclude
       )
-      .forRoutes('ai-feedbacks]'); // Apply to all routes except excluded
+      .forRoutes('focus-sessions'); // Apply to all routes except excluded
   }
 }
