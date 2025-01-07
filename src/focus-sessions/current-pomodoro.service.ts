@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { CurrentPomodoroSchema, CurrentPomodoro } from './pomodoro.schema';
+import { UpdateCurrentPomodoroDto } from './update-current-pomodoro.dto';
 
 @Injectable()
 export class CurrentPomodoroService {
@@ -28,7 +30,19 @@ export class CurrentPomodoroService {
       upsert: true, // Creates a new record if no match is found
     });
   }
+  async updateOrCreateCurrentPomodoro(user_id: string, updateData: UpdateCurrentPomodoroDto): Promise<typeof CurrentPomodoro> {
+    try {
+      const updatedPomodoro = await this.currentPomodoroModel.findOneAndUpdate(
+        { user_id },
+        updateData,
+        { new: true, upsert: true, setDefaultsOnInsert: true }
+      ).exec();
 
+      return updatedPomodoro;
+    } catch (error) {
+      throw error; // Handle or log the error as needed
+    }
+  }
   // Find all CurrentPomodoro records
   async findAllCurrentPomodoros() {
     return this.currentPomodoroModel.find().populate('user_id').exec();

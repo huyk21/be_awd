@@ -17,6 +17,7 @@ import { SessionSettingsService } from './session-settings.service';
 import { CurrentPomodoroService } from './current-pomodoro.service';
 import { TasksService } from '../tasks/tasks.service';
 import { PomodoroLogService } from './pomodoro-log.service';
+import { UpdateCurrentPomodoroDto } from './update-current-pomodoro.dto';
 
 @Controller('focus-sessions')
 export class FocusSessionsController {
@@ -235,7 +236,7 @@ export class FocusSessionsController {
     }
 
     try {
-      const currentPomodoro = await this.currentPomodoroService.createCurrentPomodoro(data);
+      const currentPomodoro = await this.currentPomodoroService.updateOrCreateCurrentPomodoro(data.user_id,data);
       this.logger.debug(`CurrentPomodoro created for user_id: ${data.user_id}`);
       return currentPomodoro;
     } catch (error) {
@@ -264,48 +265,18 @@ export class FocusSessionsController {
    * Update a CurrentPomodoro record by user_id.
    */
    @Put('current-pomodoro/:user_id')
-   async updateCurrentPomodoro(
-     @Param('user_id') user_id: string,
-     @Body() body: any,
-   ) {
-     this.logger.debug(
-       `Received PUT /focus-sessions/current-pomodoro/${user_id} with body: ${JSON.stringify(body)}`,
-     );
- 
-     // Validate input
-     if (!user_id) {
-       this.logger.warn('User ID is missing in the URL parameters.');
-       throw new HttpException('User ID is required.', HttpStatus.BAD_REQUEST);
-     }
- 
-     try {
-       const updatedPomodoro = await this.currentPomodoroService.updateCurrentPomodoro(
-         user_id,
-         body, // Expecting partial CurrentPomodoro data
-       );
- 
-       this.logger.debug(
-         `CurrentPomodoro updated for user_id: ${user_id}`,
-       );
- 
-       return {
-         message: 'CurrentPomodoro updated successfully.',
-         data: updatedPomodoro,
-       };
-     } catch (error) {
-       this.logger.error(
-         `Error updating CurrentPomodoro for user_id: ${user_id}`,
-         error.stack,
-       );
-       if (error instanceof HttpException) {
-         throw error;
-       }
-       throw new HttpException(
-         'Failed to update CurrentPomodoro.',
-         HttpStatus.INTERNAL_SERVER_ERROR,
-       );
-     }
-   }
+  async updateCurrentPomodoro(
+    @Param('user_id') user_id: string,
+    @Body() updateCurrentPomodoroDto: UpdateCurrentPomodoroDto,
+  ) {
+    try {
+      const updatedPomodoro = await this.currentPomodoroService.updateOrCreateCurrentPomodoro(user_id, updateCurrentPomodoroDto);
+      return updatedPomodoro;
+    } catch (error) {
+      // Handle error appropriately
+      throw error;
+    }
+  }
  
    /**
     * Delete a CurrentPomodoro record by user_id.
