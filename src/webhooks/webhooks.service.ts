@@ -11,22 +11,31 @@ export class WebhooksService {
   constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
 
   async handleWebhook(payload: Buffer, headers: Record<string, string>): Promise<void> {
+    this.logger.debug('Starting webhook handling');
+  
     try {
+      if (!process.env.CLERK_WEBHOOK_SECRET_KEY) {
+        this.logger.error('CLERK_WEBHOOK_SECRET_KEY is not set');
+        throw new Error('Webhook secret key is missing');
+      }
+  
       const wh = new Webhook(process.env.CLERK_WEBHOOK_SECRET_KEY);
-
-      // Explicitly type the result of `verify`
+  
+      // Debug payload and headers
+      this.logger.debug(`Payload (raw): ${payload.toString('utf8')}`);
+      this.logger.debug(`Headers: ${JSON.stringify(headers)}`);
+  
       const evt = wh.verify(payload.toString(), headers) as {
         type: string;
-        data: {
-          id: string;
-          first_name?: string;
-          last_name?: string;
-        };
+        data: { id: string; first_name?: string; last_name?: string };
       };
-
+  
       const { id, first_name, last_name } = evt.data;
       const eventType = evt.type;
-
+  
+      this.logger.debug(`Webhook verified. Event type: ${eventType}`);
+      this.logger.debug(`Event data: ${JSON.stringify(evt.data)}`);
+  
       if (eventType === 'user.created') {
         await this.createUser(id, first_name, last_name);
       } else {
@@ -37,8 +46,12 @@ export class WebhooksService {
       throw new Error(`Webhook processing failed: ${err.message}`);
     }
   }
+  
+  
 
   private async createUser(id: string, firstName?: string, lastName?: string): Promise<void> {
+    this.logger.debug(`Creating user with ID: ${id}`);
+    
     try {
       const existingUser = await this.userModel.findOne({ userId: id });
 

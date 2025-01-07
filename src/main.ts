@@ -1,10 +1,18 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import cookieParser from 'cookie-parser';
+import * as bodyParser from 'body-parser';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.use(cookieParser());
-  // Enable CORS
+  app.use(
+    '/api/webhook',
+    bodyParser.raw({ type: '*/*' }), // Parses all content types as raw Buffer
+  );
+
+  // Ensure global JSON body parser does not override the webhook-specific raw parser
+  app.use(bodyParser.json()); // Apply JSON parser for other routes
+
   app.enableCors({
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE', // Allow specific HTTP methods
     origin: 'http://localhost:5173', // Allow requests from this origin
