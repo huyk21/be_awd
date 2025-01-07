@@ -92,7 +92,7 @@ export class TasksService {
       throw new NotFoundException(`Task with ID "${id}" not found`);
     }
 
-    task.pomodoro_number += 1;
+    
 
     if (task.pomodoro_number >= task.pomodoro_required_number) {
       task.status = 'completed';
