@@ -3,7 +3,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { CreateTaskDto, UpdateTaskDto } from './tasks.dto';
+import { CreateTaskDto, UpdateTaskDto, UpdateTaskTimeDto } from './tasks.dto';
 import { UpdateTaskStatusDto } from './tasks.dto'; // Import the new DTO
 import { Task, TaskDocument } from './tasks.schema';
 
@@ -23,7 +23,7 @@ export class TasksService {
   async findByUserId(userId: string): Promise<Task[]> {
     const tasks = await this.taskModel.find({ userId }).exec();
     if (!tasks.length) {
-      throw new NotFoundException(`No tasks found for user ID ${userId}`);
+      return [];  
     }
     return tasks;
   }
@@ -99,5 +99,22 @@ export class TasksService {
     }
 
     return task.save();
+  }
+
+  async updateTaskTime(id: string, updateTaskTimeDto: UpdateTaskTimeDto): Promise<Task> {
+    const { startTime, endTime } = updateTaskTimeDto; // Use startTime and endTime from DTO
+    const updatedTask = await this.taskModel
+      .findByIdAndUpdate(
+        id,
+        { startTime, endTime }, // Update startTime and endTime
+        { new: true, runValidators: true }, // new: true returns the updated document
+      )
+      .exec();
+
+    if (!updatedTask) {
+      throw new NotFoundException(`Task with ID ${id} not found`);
+    }
+
+    return updatedTask;
   }
 }
