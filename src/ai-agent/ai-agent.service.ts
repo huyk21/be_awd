@@ -3,7 +3,9 @@ import { Inject, Injectable } from '@nestjs/common';
 import {
   deleteTaskByIdFunctionDeclaration,
   createTaskFunctionDeclaration,
+  chatWithUserFunctionDeclaration,
   findAllTasksFunctionDeclaration,
+  generationConfig,
 } from './ai-agent.config';
 import { TasksService } from '../tasks/tasks.service';
 
@@ -26,6 +28,9 @@ export class AiAgentService {
     createTask: async (data: any) => {
       return await this.tasksService.createTask(data);
     },
+    answerUserQuestion: (data: any) => {
+      return data;
+    },
   };
 
   constructor(
@@ -35,12 +40,13 @@ export class AiAgentService {
     this.generativeModel = this.genAI.getGenerativeModel({
       model: 'gemini-1.5-flash',
       systemInstruction:
-        'You will be provided a tasks data of users as a knowledgebase',
+        'You will be provided a tasks data of users as a knowledgebase. You are an ai-agent that answer user question.',
       tools: {
         functionDeclarations: [
           //   findAllTasksFunctionDeclaration,
           deleteTaskByIdFunctionDeclaration,
           createTaskFunctionDeclaration,
+          chatWithUserFunctionDeclaration,
         ],
       },
       toolConfig: { functionCallingConfig: { mode: 'ANY' } },
@@ -59,7 +65,7 @@ export class AiAgentService {
           role: 'user',
           parts: [
             {
-              text: `This is the knowledge base ${this.userTasks} and today is ${new Date().toISOString()}`,
+              text: `This is the knowledge base that is my tasks:${this.userTasks}. today is ${new Date().toISOString()}`,
             },
             {
               text: 'This is my user_id' + this.userId,
@@ -67,6 +73,7 @@ export class AiAgentService {
           ],
         },
       ],
+      generationConfig,
     });
     const result = await chat.sendMessage(prompt);
     const call = result.response.functionCalls();
@@ -77,13 +84,10 @@ export class AiAgentService {
           console.log('delete call', call);
           let deletedCount = 0;
           for (const call_element of call) {
-            const response = await this.functions[call_element.name](
-              call_element.args,
-            );
+            await this.functions[call_element.name](call_element.args);
             deletedCount += 1;
           }
-          return `deleted ${deletedCount} tasks`;
-          // will call to delete selected tasks
+          return {response: `I deleted ${deletedCount} tasks`};
         }
         if (call[0].name === 'createTask') {
           // const apiResponse = await this.functions[call.name](call.args);
@@ -96,7 +100,10 @@ export class AiAgentService {
             listTaskCreated.push(response);
             countCreate += 1;
           }
-          return listTaskCreated;
+          return {response: `I have created ${countCreate} tasks`};
+        }
+        if (call[0].name === 'answerUserQuestion') {
+          return { response: call[0].args.response || "I cant answer your question"};
         }
       } else {
         throw new Error(`Function ${call.name} is not implemented.`);

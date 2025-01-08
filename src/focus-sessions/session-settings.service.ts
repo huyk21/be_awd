@@ -14,6 +14,10 @@ export class SessionSettingsService {
     return this.sessionSettingsModel.find();
   }
 
+  async findByUserId(user_id: string) {
+    return this.sessionSettingsModel.findOne({ user_id }).exec();
+  }
+
   async createSessionSettings(user_id, data) {
     const sessionSettings = new this.sessionSettingsModel({
       user_id,

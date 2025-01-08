@@ -15,6 +15,21 @@ export const findAllTasksFunctionDeclaration = {
   },
 };
 
+export const chatWithUserFunctionDeclaration = {
+  name: 'answerUserQuestion',
+  description: 'Answer user question base on the tasks user give you',
+  parameters: {
+    type: 'object',
+    properties: {
+      response: {
+        type: 'string',
+        description: 'Answer about user question',
+      },
+    },
+    required: ['response'],
+  },
+};
+
 export const deleteTaskByIdFunctionDeclaration = {
   name: 'deleteTaskById',
   description: 'Delete task id',
@@ -95,4 +110,10 @@ export const createTaskFunctionDeclaration = {
       'estimatedTime',
     ], // These fields are mandatory
   },
+};
+
+export const generationConfig = {
+  temperature: 0.1,
+  topP: 0.5,
+  topK: 2,
 };

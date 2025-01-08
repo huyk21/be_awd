@@ -1,22 +1,34 @@
-import { Controller, Post, Req, Res, Headers, HttpStatus } from '@nestjs/common';
-import { WebhooksService } from './webhooks.service';
+import { Controller, Post, Req, Res, Logger } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { WebhooksService } from './webhooks.service';
 
 @Controller('api/webhook')
 export class WebhooksController {
+  private readonly logger = new Logger(WebhooksController.name);
+
   constructor(private readonly webhooksService: WebhooksService) {}
 
   @Post()
-  async receiveWebhook(
-    @Req() req: Request,
-    @Res() res: Response,
-    @Headers() headers: Record<string, string>,
-  ) {
+  async handleWebhook(@Req() req: Request, @Res() res: Response) {
+    this.logger.debug('Received webhook request');
+
+    const payload = req.body; // Raw payload as Buffer
+    const headers = req.headers;
+
+    // Confirm payload type
+    this.logger.debug(`Payload type: ${typeof payload}`);
+    if (Buffer.isBuffer(payload)) {
+      this.logger.debug('Payload is a Buffer');
+    } else {
+      this.logger.error('Payload is not a Buffer. Ensure raw body parser is applied.');
+    }
+
     try {
-      await this.webhooksService.handleWebhook(req.body, headers);
-      res.status(HttpStatus.OK).json({ success: true, message: 'Webhook processed' });
+      await this.webhooksService.handleWebhook(payload, headers as Record<string, string>);
+      res.status(200).send('Webhook processed successfully');
     } catch (err) {
-      res.status(HttpStatus.BAD_REQUEST).json({ success: false, message: err.message });
+      this.logger.error(`Webhook processing failed: ${err.message}`, err.stack);
+      res.status(400).send('Webhook Error');
     }
   }
 }

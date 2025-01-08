@@ -23,7 +23,7 @@ export class AuthMiddleware implements NestMiddleware {
       jwksUri,
       cache: true,
       cacheMaxEntries: 5, // Default value
-      cacheMaxAge: 10 * 60 * 1000, // 10 minutes
+      cacheMaxAge: 10 * 60 * 10000, // 10 minutes
     });
 
     // Promisify getSigningKey

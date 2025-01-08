@@ -19,6 +19,7 @@ import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { DatabaseProvider } from './database.provider';
 import { WebhooksModule } from './webhooks/webhooks.module';
+import { AiAgentModule } from './ai-agent/ai-agent.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     ActivityModule,
     SeedModule,
     WebhooksModule,
+    AiAgentModule,
   ],
   controllers: [AppController],
   providers: [AppService, DatabaseProvider],
@@ -56,6 +58,6 @@ export class AppModule {
         { path: 'auth/register', method: RequestMethod.POST },
         // Add any other public routes you want to exclude
       )
-      .forRoutes('ai-feedbacks]'); // Apply to all routes except excluded
+      .forRoutes('focus-sessions'); // Apply to all routes except excluded
   }
 }
