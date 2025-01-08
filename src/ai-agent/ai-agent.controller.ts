@@ -1,12 +1,13 @@
 import { Body, Controller, Get, Post } from '@nestjs/common';
 import { AiAgentService } from './ai-agent.service';
+import { ProcessPromptDto } from './ai-agent.dto';
 
 @Controller('ai-agent')
 export class AiAgentController {
   constructor(private readonly aiAgentService: AiAgentService) {}
 
   @Post()
-  async testAiAgent(@Body('prompt') prompt: string): Promise<any> {
+  async chatWithAIAgent(@Body() prompt: ProcessPromptDto): Promise<any> {
     return this.aiAgentService.processPrompt(prompt);
   }
 

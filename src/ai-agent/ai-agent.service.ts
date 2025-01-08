@@ -1,21 +1,21 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import {
   deleteTaskByIdFunctionDeclaration,
   createTaskFunctionDeclaration,
   chatWithUserFunctionDeclaration,
-  findAllTasksFunctionDeclaration,
   generationConfig,
 } from './ai-agent.config';
 import { TasksService } from '../tasks/tasks.service';
+import { ProcessPromptDto } from './ai-agent.dto';
 
 @Injectable()
 export class AiAgentService {
   private readonly genAI: GoogleGenerativeAI;
   private readonly generativeModel: any;
+  private cacheUserTasks: Map<string, any[]> = new Map(); // Cache for user tasks
+  private chatSessions: Map<string, any> = new Map(); 
   // buffer for caching user tasks
-  private userTasks: any;
-  private userId: string = 'user_2q3NRZRd97Bd1pj5ecvlyLiMmIT';
 
   private functions = {
     findAllTasksByUserId: async ({ userId }) => {
@@ -53,63 +53,114 @@ export class AiAgentService {
     });
   }
 
-  async processPrompt(prompt: string) {
-    // this will pass by middleware jwt token
-    const userId = 'user_2q3NRZRd97Bd1pj5ecvlyLiMmIT';
-    if (!this.userTasks) {
-      this.userTasks = await this.tasksService.findByUserId(userId);
+  async processPrompt(payload: ProcessPromptDto) {
+    const { userId, userRole, preferredModel, prompt } = payload;
+
+    // User role check (can be modified as needed)
+    if (userRole === 'normal') {
+      throw new UnauthorizedException(
+        'Please upgrade to premium to use this feature',
+      );
     }
-    const chat = this.generativeModel.startChat({
-      history: [
-        {
-          role: 'user',
-          parts: [
-            {
-              text: `This is the knowledge base that is my tasks:${this.userTasks}. today is ${new Date().toISOString()}`,
-            },
-            {
-              text: 'This is my user_id' + this.userId,
-            },
-          ],
-        },
-      ],
-      generationConfig,
-    });
-    const result = await chat.sendMessage(prompt);
-    const call = result.response.functionCalls();
-    console.log(call);
-    if (call) {
-      if (this.functions[call[0].name]) {
-        if (call[0].name === 'deleteTaskById') {
-          console.log('delete call', call);
-          let deletedCount = 0;
-          for (const call_element of call) {
-            await this.functions[call_element.name](call_element.args);
-            deletedCount += 1;
-          }
-          return {response: `I deleted ${deletedCount} tasks`};
-        }
-        if (call[0].name === 'createTask') {
-          // const apiResponse = await this.functions[call.name](call.args);
-          let countCreate = 0;
-          const listTaskCreated = [];
-          for (const call_element of call) {
-            const response = await this.functions[call_element.name](
-              call_element.args,
-            );
-            listTaskCreated.push(response);
-            countCreate += 1;
-          }
-          return {response: `I have created ${countCreate} tasks`};
-        }
-        if (call[0].name === 'answerUserQuestion') {
-          return { response: call[0].args.response || "I cant answer your question"};
-        }
-      } else {
-        throw new Error(`Function ${call.name} is not implemented.`);
-      }
+
+    // Fetch or retrieve user tasks from cache
+    let userTasks;
+    const cachedTasks = this.cacheUserTasks.get(userId);
+    if (!cachedTasks) {
+      const fetchedTasks = await this.tasksService.findByUserId(userId);
+      userTasks = fetchedTasks;
+      this.cacheUserTasks.set(userId, fetchedTasks);
     } else {
-      throw new Error('No function call detected.');
+      userTasks = cachedTasks;
     }
+
+    let chatSession = await this.chatSessions.get(userId);
+
+    if (!chatSession) {
+      console.log('user not have chat session', chatSession);
+      chatSession = this.generativeModel.startChat({
+        history: [
+          {
+            role: 'user',
+            parts: [
+              {
+                text: `This is the knowledge base that is my tasks:${userTasks}. today is ${new Date().toISOString()}`,
+              },
+              { text: 'This is my user_id' + userId },
+            ],
+          },
+        ],
+        generationConfig,
+      });
+      this.chatSessions.set(userId, chatSession);
+    } else {
+    }
+    console.log(userTasks, chatSession);
+
+    const result = await chatSession.sendMessage(prompt);
+    const calls = result.response.functionCalls();
+
+    if (!calls || calls.length === 0) {
+      return {
+        response: result.response.text() || 'No response from the model.',
+      }; // Handle no function calls
+    }
+
+    const functionName = calls[0].name;
+
+    if (!this.functions[functionName]) {
+      throw new Error(`Function ${functionName} is not implemented.`);
+    }
+
+    let responseMessage;
+
+    switch (functionName) {
+      case 'deleteTaskById':
+        try {
+          const deletePromises = calls.map((call) =>
+            this.functions[call.name](call.args),
+          );
+          const results = await Promise.all(deletePromises);
+          const deletedCount = results.length; // Count successful deletions
+
+          // Update user tasks in cache and chat session
+          responseMessage = `I deleted ${deletedCount} tasks`;
+        } catch (error) {
+          console.error('Error deleting tasks:', error);
+          responseMessage = 'An error occurred while deleting tasks.';
+        }
+        break;
+
+      case 'createTask':
+        try {
+          const createPromises = calls.map((call) =>
+            this.functions[call.name](call.args),
+          );
+          const createdTasks = await Promise.all(createPromises);
+
+          // Update user tasks in cache and chat session
+          userTasks.concat(createdTasks);
+          console.log('tasks after update', userTasks);
+          this.cacheUserTasks.set(userId, userTasks);
+          chatSession.sendMessage(`This is my new tasks ${userTasks}`);
+
+          responseMessage = `I have created ${userTasks.length} tasks`;
+        } catch (error) {
+          console.error('Error creating tasks:', error);
+          responseMessage = 'An error occurred while creating tasks.';
+        }
+        break;
+
+      case 'answerUserQuestion':
+        responseMessage =
+          calls[0].args.response || "I can't answer your question.";
+        break;
+
+      default:
+        throw new Error(`Unexpected function call: ${functionName}`);
+    }
+
+    this.chatSessions.set(userId, chatSession); // Update chat session with potential history changes
+    return { response: responseMessage };
   }
 }
