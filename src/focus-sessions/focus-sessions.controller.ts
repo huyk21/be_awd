@@ -105,32 +105,51 @@ export class FocusSessionsController {
   @Get('session-settings')
   async getSessionSettings(@Request() req) {
     this.logger.debug('Received GET /focus-sessions/session-settings');
-
+  
     const userId = req['user']?.userId;
     this.logger.debug(`Authenticated user ID: ${userId}`);
-
+  
     if (!userId) {
       this.logger.warn('User ID not found in the request.');
       throw new HttpException('User not authenticated.', HttpStatus.UNAUTHORIZED);
     }
-
+  
     try {
-      const settings = await this.sessionSettingsService.findByUserId(userId);
+      let settings = await this.sessionSettingsService.findByUserId(userId);
+  
       if (!settings) {
         this.logger.warn(`Session settings not found for user_id: ${userId}`);
-        throw new HttpException('Session settings not found.', HttpStatus.NOT_FOUND);
+        this.logger.debug(`Creating default session settings for user_id: ${userId}`);
+  
+        // Define default session settings
+        const defaultSettings = {
+          user_id: userId,
+          default_work_time: 25,
+          default_break_time: 5,
+          long_break_time: 15,
+          cycles_per_set: 4,
+        };
+  
+        // Create default session settings
+        settings = await this.sessionSettingsService.createSessionSettings(userId, defaultSettings);
+  
+        this.logger.debug(`Default session settings created for user_id: ${userId}`);
+      } else {
+        this.logger.debug(`Retrieved session settings for user_id: ${userId}`);
       }
-
-      this.logger.debug(`Retrieved session settings for user_id: ${userId}`);
+  
       return settings;
     } catch (error) {
-      this.logger.error(`Error fetching session settings for user_id: ${userId}`, error.stack);
+      this.logger.error(`Error fetching or creating session settings for user_id: ${userId}`, error.stack);
+  
       if (error instanceof HttpException) {
         throw error;
       }
-      throw new HttpException('Failed to fetch session settings.', HttpStatus.INTERNAL_SERVER_ERROR);
+  
+      throw new HttpException('Failed to fetch or create session settings.', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
+  
 
   /**
    * Create a pomodoro log entry.

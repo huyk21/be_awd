@@ -1,26 +1,30 @@
-import { Injectable } from '@nestjs/common';
+// daily-analytics.service.ts
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Task, TaskDocument } from '../tasks/tasks.schema';
-import {
-  PomodoroLog,
-} from '../focus-sessions/pomodoro.schema';
+import { PomodoroLog } from '../focus-sessions/pomodoro.schema';
+import { DailyAnalytics, DailyAnalyticsDocument } from './daily-analytics.schema';
 
 @Injectable()
 export class DailyAnalyticsService {
   constructor(
     @InjectModel(Task.name) private readonly taskModel: Model<TaskDocument>,
-    @InjectModel('PomodoroLog')
-    private readonly pomodoroLogModel: Model<typeof PomodoroLog>,
+    @InjectModel(PomodoroLog.name) private readonly pomodoroLogModel: Model<typeof PomodoroLog>,
+    @InjectModel(DailyAnalytics.name) private readonly dailyAnalyticsModel: Model<DailyAnalyticsDocument>,
   ) {}
 
-  async getCircleChartGroupByTaskStaus(): Promise<{
-    [status: string]: number;
-  }> {
+  // Existing methods updated to accept user_id
+  async getCircleChartGroupByTaskStatus(userId: string): Promise<{ [status: string]: number }> {
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
     const { sunday, saturday } = this.getSundayAndSaturdayOfThisWeek();
     const results = await this.taskModel.aggregate([
       {
         $match: {
+          userId: userId, // Filter by userId
           startTime: { $gte: sunday, $lte: saturday },
         },
       },
@@ -40,16 +44,22 @@ export class DailyAnalyticsService {
     return taskCounts;
   }
 
-  async getPomodoroAnalytics(): Promise<{
+  async getPomodoroAnalytics(userId: string): Promise<{
     weeklyPomodoro: { [date: string]: number };
     activeDays: number;
     totalTimeSpent: number; // Total time spent in minutes for pomodoro sessions
   }> {
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
     const { sunday, saturday } = this.getSundayAndSaturdayOfThisWeek();
 
-    const results = await this.taskModel.aggregate([
+    // Aggregate tasks for weekly pomodoro count
+    const taskResults = await this.taskModel.aggregate([
       {
         $match: {
+          userId: userId, // Filter by userId
           startTime: { $gte: sunday, $lte: saturday },
         },
       },
@@ -69,13 +79,15 @@ export class DailyAnalyticsService {
       weeklyPomodoro[dateString] = 0;
     }
 
-    results.forEach((result) => {
+    taskResults.forEach((result) => {
       weeklyPomodoro[result._id] = result.totalPomodoro;
     });
 
+    // Aggregate pomodoro logs for total time spent
     const timeSpentResult = await this.pomodoroLogModel.aggregate([
       {
         $match: {
+          userId: userId, // Filter by userId
           start_time: { $gte: sunday, $lte: saturday },
           session_status: 'pomodoro', // Filter by session_status = 'pomodoro'
         },
@@ -97,6 +109,7 @@ export class DailyAnalyticsService {
         },
       },
     ]);
+
     const totalTimeSpent = timeSpentResult.length
       ? timeSpentResult[0].totalTimeSpent
       : 0;
@@ -108,9 +121,13 @@ export class DailyAnalyticsService {
     return { weeklyPomodoro, activeDays, totalTimeSpent };
   }
 
-  async getWeeklyTaskCounts(): Promise<{ [status: string]: number }> {
+  async getWeeklyTaskCounts(userId: string): Promise<{ [status: string]: number }> {
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
     const now = new Date();
-    const dayOfWeek = now.getDay();
+    const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
     const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - dayOfWeek);
     startOfWeek.setHours(0, 0, 0, 0);
@@ -122,6 +139,7 @@ export class DailyAnalyticsService {
     const results = await this.taskModel.aggregate([
       {
         $match: {
+          userId: userId, // Filter by userId
           startTime: { $gte: startOfWeek, $lte: endOfWeek },
         },
       },
@@ -139,6 +157,27 @@ export class DailyAnalyticsService {
     }, {});
 
     return weeklyCounts;
+  }
+
+  async updateSessionSettings(userId: string, settings: any): Promise<any> {
+    if (!userId) {
+      throw new BadRequestException('User ID is required');
+    }
+
+    // Example: Update settings in DailyAnalytics collection
+    const updated = await this.dailyAnalyticsModel.findOneAndUpdate(
+      { userId: userId, date: this.getTodayDateString() }, // Match by userId and today's date
+      settings, // Update with provided settings
+      { new: true, upsert: true }, // Return the updated document or create if not exists
+    );
+
+    return updated;
+  }
+
+  // Helper method to get today's date as string
+  private getTodayDateString(): string {
+    const today = new Date();
+    return today.toISOString().split('T')[0]; // Format: YYYY-MM-DD
   }
 
   getSundayAndSaturdayOfThisWeek() {
