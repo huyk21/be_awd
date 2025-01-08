@@ -75,24 +75,6 @@ export class TasksService {
     return updatedTask;
   }
 
-  // Update the status of a task
-  async updateTaskTime(id: string, updateTaskTimeDto: UpdateTaskTimeDto): Promise<Task> {
-    const { startTime, endTime } = updateTaskTimeDto; // Use startTime and endTime from DTO
-    const updatedTask = await this.taskModel
-      .findByIdAndUpdate(
-        id,
-        { startTime, endTime }, // Update startTime and endTime
-        { new: true, runValidators: true }, // new: true returns the updated document
-      )
-      .exec();
-
-    if (!updatedTask) {
-      throw new NotFoundException(`Task with ID ${id} not found`);
-    }
-
-    return updatedTask;
-  }
-
   // Delete a task
   async deleteTask(id: string): Promise<void> {
     const result = await this.taskModel.findByIdAndDelete(id).exec();
