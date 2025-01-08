@@ -3,7 +3,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { CreateTaskDto, UpdateTaskDto } from './tasks.dto';
+import { CreateTaskDto, UpdateTaskDto, UpdateTaskTimeDto } from './tasks.dto';
 import { UpdateTaskStatusDto } from './tasks.dto'; // Import the new DTO
 import { Task, TaskDocument } from './tasks.schema';
 
@@ -12,7 +12,7 @@ import { Task, TaskDocument } from './tasks.schema';
 export class TasksService {
   constructor(
     @InjectModel(Task.name) private readonly taskModel: Model<TaskDocument>,
-  ) {}
+  ) { }
 
   // Get all tasks
   async findAll(): Promise<Task[]> {
@@ -65,6 +65,24 @@ export class TasksService {
         id,
         { status },
         { new: true, runValidators: true }, // runValidators ensures enum validation at the DB level
+      )
+      .exec();
+
+    if (!updatedTask) {
+      throw new NotFoundException(`Task with ID ${id} not found`);
+    }
+
+    return updatedTask;
+  }
+
+  // Update the status of a task
+  async updateTaskTime(id: string, updateTaskTimeDto: UpdateTaskTimeDto): Promise<Task> {
+    const { startTime, endTime } = updateTaskTimeDto; // Use startTime and endTime from DTO
+    const updatedTask = await this.taskModel
+      .findByIdAndUpdate(
+        id,
+        { startTime, endTime }, // Update startTime and endTime
+        { new: true, runValidators: true }, // new: true returns the updated document
       )
       .exec();
 

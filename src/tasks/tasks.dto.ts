@@ -33,8 +33,15 @@ export class UpdateTaskStatusDto {
   status: TaskStatus;
 }
 
+export class UpdateTaskTimeDto {
+  @IsDateString()
+  startTime: string; // ISO 8601 date string
+
+  @IsDateString()
+  endTime: string; // ISO 8601 date string
+}
+
 export class CreateTaskDto {
- 
 
   @IsString()
   @ApiProperty({ description: 'User ID for the task owner' })

@@ -11,7 +11,7 @@ import {
   Req,
 } from '@nestjs/common';
 import { TasksService } from './tasks.service';
-import { CreateTaskDto, UpdateTaskDto } from './tasks.dto';
+import { CreateTaskDto, UpdateTaskDto, UpdateTaskTimeDto } from './tasks.dto';
 import { UpdateTaskStatusDto } from './tasks.dto'; // Import the new DTO
 import { Task } from './tasks.schema';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
@@ -19,7 +19,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 @ApiTags('tasks') // Groups routes under 'tasks' in Swagger UI
 @Controller('tasks')
 export class TasksController {
-  constructor(private readonly tasksService: TasksService) {}
+  constructor(private readonly tasksService: TasksService) { }
 
   @Get()
   @ApiOperation({ summary: 'Retrieve all tasks' })
@@ -67,6 +67,23 @@ export class TasksController {
   ): Promise<Task> {
     return await this.tasksService.updateTaskStatus(id, updateTaskStatusDto);
   }
+
+  @Patch(':id/time')
+  @ApiOperation({ summary: 'Update the start and end times of a task' })
+  @ApiBody({ type: UpdateTaskTimeDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Task time updated successfully.',
+    type: Task,
+  })
+  @ApiResponse({ status: 404, description: 'Task not found.' })
+  async updateTaskTime(
+    @Param('id') id: string,
+    @Body() updateTaskTimeDto: UpdateTaskTimeDto,
+  ): Promise<Task> {
+    return await this.tasksService.updateTaskTime(id, updateTaskTimeDto);
+  }
+
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a task by ID' })
