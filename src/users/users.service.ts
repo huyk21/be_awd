@@ -33,14 +33,19 @@ export class UsersService {
     return this.users;
   }
 
-  getUserById(userId: string) {
+  async getUserById(userId: string): Promise<User> {
     this.logger.debug(`Fetching user by ID: ${userId}`);
-    const user = this.users.find((user) => user.userId === userId);
+  
+    const user = await this.userModel.findOne({ userId }).exec(); // Query the database
     if (!user) {
       this.logger.warn(`User with ID ${userId} not found`);
+      throw new NotFoundException(`User with ID ${userId} not found.`);
     }
+  
+    this.logger.log(`User with ID ${userId} fetched successfully`);
     return user;
   }
+  
 
   createUser(data: any) {
     const newUser = { userId: Date.now().toString(), ...data };
