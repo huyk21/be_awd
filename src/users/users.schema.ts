@@ -25,6 +25,8 @@ export class User {
     notifications: boolean;
     language: string;
   };
+  @Prop({ type: String, enum: ['normal', 'premium', 'user'], default: 'normal' }) // New userRole field
+  userRole: 'norma' | 'premium' | 'user';
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
