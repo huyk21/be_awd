@@ -18,7 +18,7 @@ export class DailyAnalyticsController {
    * Retrieves task counts grouped by status for a specific user within the current week.
    * @param user_id - The ID of the user.
    */
-  @Get('/circle-chart/:user_id')
+  @Get('circle-chart/:user_id')
   async getCircleChart(
     @Param('user_id') user_id: string,
   ) {
@@ -29,7 +29,7 @@ export class DailyAnalyticsController {
    * Retrieves weekly task counts grouped by status for a specific user.
    * @param user_id - The ID of the user.
    */
-  @Get('/weekly/:user_id')
+  @Get('weekly/:user_id')
   async getWeeklyAnalytics(
     @Param('user_id') user_id: string,
   ) {
@@ -40,7 +40,7 @@ export class DailyAnalyticsController {
    * Retrieves pomodoro analytics for a specific user within the current week.
    * @param user_id - The ID of the user.
    */
-  @Get('/pomodoro-analytics/:user_id')
+  @Get('pomodoro-analytics/:user_id')
   async getPomodoroAnalytics(
     @Param('user_id') user_id: string,
   ) {

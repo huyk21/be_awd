@@ -1,5 +1,5 @@
 // daily-analytics.service.ts
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger, InternalServerErrorException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Task, TaskDocument } from '../tasks/tasks.schema';
@@ -8,6 +8,7 @@ import { DailyAnalytics, DailyAnalyticsDocument } from './daily-analytics.schema
 
 @Injectable()
 export class DailyAnalyticsService {
+  private readonly logger = new Logger(DailyAnalyticsService.name);
   constructor(
     @InjectModel(Task.name) private readonly taskModel: Model<TaskDocument>,
     @InjectModel(PomodoroLog.name) private readonly pomodoroLogModel: Model<typeof PomodoroLog>,
@@ -16,33 +17,57 @@ export class DailyAnalyticsService {
 
   // Existing methods updated to accept user_id
   async getCircleChartGroupByTaskStatus(userId: string): Promise<{ [status: string]: number }> {
+    this.logger.debug(`getCircleChartGroupByTaskStatus called with userId: ${userId}`);
+  
     if (!userId) {
+      this.logger.error('User ID is missing in getCircleChartGroupByTaskStatus');
       throw new BadRequestException('User ID is required');
     }
-
+  
     const { sunday, saturday } = this.getSundayAndSaturdayOfThisWeek();
-    const results = await this.taskModel.aggregate([
-      {
-        $match: {
-          userId: userId, // Filter by userId
-          startTime: { $gte: sunday, $lte: saturday },
+    this.logger.debug(`Aggregating tasks from ${sunday.toISOString()} to ${saturday.toISOString()}`);
+  
+    try {
+      const results = await this.taskModel.aggregate([
+        {
+          $match: {
+            userId: userId, // Filter by userId
+            startTime: { $gte: sunday, $lte: saturday },
+          },
         },
-      },
-      {
-        $group: {
-          _id: '$status',
-          count: { $sum: 1 },
+        {
+          $group: {
+            _id: '$status',
+            count: { $sum: 1 },
+          },
         },
-      },
-    ]);
-
-    const taskCounts = results.reduce((acc, curr) => {
-      acc[curr._id] = curr.count;
-      return acc;
-    }, {});
-
-    return taskCounts;
+      ]);
+  
+      this.logger.debug(`Aggregation Results: ${JSON.stringify(results)}`);
+  
+      const taskCounts = results.reduce((acc, curr) => {
+        acc[curr._id] = curr.count;
+        return acc;
+      }, {});
+  
+      // Validate that all expected statuses are present
+      const expectedStatuses = ['completed', 'in-progress', 'pending', 'expired'];
+      expectedStatuses.forEach(status => {
+        if (!(status in taskCounts)) {
+          taskCounts[status] = 0;
+          this.logger.warn(`Status "${status}" missing in aggregation results. Defaulting to 0.`);
+        }
+      });
+  
+      this.logger.debug(`Processed Task Counts: ${JSON.stringify(taskCounts)}`);
+  
+      return taskCounts;
+    } catch (error) {
+      this.logger.error(`Error in getCircleChartGroupByTaskStatus for userId: ${userId}`, error.stack);
+      throw new InternalServerErrorException('Failed to aggregate task statuses.');
+    }
   }
+  
 
   async getPomodoroAnalytics(userId: string): Promise<{
     weeklyPomodoro: { [date: string]: number };

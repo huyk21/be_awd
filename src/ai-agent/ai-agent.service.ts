@@ -59,7 +59,7 @@ export class AiAgentService {
     const { userId, userRole, prompt } = payload;
 
     // User role check (can be modified as needed)
-    if (userRole === 'normal') {
+    if (userRole !== 'premium') {
       throw new UnauthorizedException(
         'Please upgrade to premium to use this feature',
       );
