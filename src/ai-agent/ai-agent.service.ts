@@ -1,4 +1,8 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import {
+  GoogleGenerativeAI,
+  GenerativeModel,
+  FunctionCallingMode,
+} from '@google/generative-ai';
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import {
   deleteTaskByIdFunctionDeclaration,
@@ -9,16 +13,20 @@ import {
 import { TasksService } from '../tasks/tasks.service';
 import { ProcessPromptDto } from './ai-agent.dto';
 
+const tools = [
+  deleteTaskByIdFunctionDeclaration,
+  createTaskFunctionDeclaration,
+  chatWithUserFunctionDeclaration,
+];
 @Injectable()
 export class AiAgentService {
-  private readonly genAI: GoogleGenerativeAI;
-  private readonly generativeModel: any;
+  private readonly genAI;
+  private readonly generativeModel: object;
   private cacheUserTasks: Map<string, any[]> = new Map(); // Cache for user tasks
-  private chatSessions: Map<string, any> = new Map(); 
-  // buffer for caching user tasks
+  private chatSessions: Map<string, any> = new Map();
 
   private functions = {
-    findAllTasksByUserId: async ({ userId }) => {
+    findAllTasksByUserId: async ({ userId }): Promise<any> => {
       console.log(`Fetching tasks for userId: ${userId}`);
       return await this.tasksService.findByUserId(userId);
     },
@@ -37,24 +45,18 @@ export class AiAgentService {
     @Inject(TasksService) private readonly tasksService: TasksService,
   ) {
     this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    this.generativeModel = this.genAI.getGenerativeModel({
+    const modelParams = {
       model: 'gemini-1.5-flash',
       systemInstruction:
         'You will be provided a tasks data of users as a knowledgebase. You are an ai-agent that answer user question.',
-      tools: {
-        functionDeclarations: [
-          //   findAllTasksFunctionDeclaration,
-          deleteTaskByIdFunctionDeclaration,
-          createTaskFunctionDeclaration,
-          chatWithUserFunctionDeclaration,
-        ],
-      },
-      toolConfig: { functionCallingConfig: { mode: 'ANY' } },
-    });
+      tools: {functionDeclarations: tools},
+      toolConfig: { functionCallingConfig: { mode: FunctionCallingMode.ANY } },
+    };
+    this.generativeModel = this.genAI.getGenerativeModel(modelParams);
   }
 
   async processPrompt(payload: ProcessPromptDto) {
-    const { userId, userRole, preferredModel, prompt } = payload;
+    const { userId, userRole, prompt } = payload;
 
     // User role check (can be modified as needed)
     if (userRole === 'normal') {
@@ -78,7 +80,7 @@ export class AiAgentService {
 
     if (!chatSession) {
       console.log('user not have chat session', chatSession);
-      chatSession = this.generativeModel.startChat({
+      chatSession = (this.generativeModel as GenerativeModel).startChat({
         history: [
           {
             role: 'user',
@@ -125,6 +127,7 @@ export class AiAgentService {
 
           // Update user tasks in cache and chat session
           responseMessage = `I deleted ${deletedCount} tasks`;
+          await chatSession.sendMessage(`You have deleted ${deletedCount} tasks`);
         } catch (error) {
           console.error('Error deleting tasks:', error);
           responseMessage = 'An error occurred while deleting tasks.';
@@ -142,9 +145,9 @@ export class AiAgentService {
           userTasks.concat(createdTasks);
           console.log('tasks after update', userTasks);
           this.cacheUserTasks.set(userId, userTasks);
-          chatSession.sendMessage(`This is my new tasks ${userTasks}`);
+          await chatSession.sendMessage(`This is my new addded task ${createdTasks}`);
 
-          responseMessage = `I have created ${userTasks.length} tasks`;
+          responseMessage = `I have created ${createdTasks.length} tasks`;
         } catch (error) {
           console.error('Error creating tasks:', error);
           responseMessage = 'An error occurred while creating tasks.';
